@@ -3,75 +3,36 @@ name: Deploy EDP Overlay
 on:
   workflow_dispatch:
 
-concurrency:
-  group: edp-map-deployment
-  cancel-in-progress: false
-
 permissions:
   contents: read
   pages: write
   id-token: write
 
+concurrency:
+  group: edp-map-deployment
+  cancel-in-progress: false
+
 jobs:
   deploy:
-    name: Deploy EDP Overlay
-
-    runs-on:
-      - self-hosted
-      - Windows
-      - X64
-      - edp-overlay
+    runs-on: [self-hosted, edp-overlay]
 
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-
-      - name: Prepare Pages directory
+      - name: Add Git Bash to PATH
         shell: powershell
         run: |
-          $PagesPath = "C:\EDP\Pages"
+          Add-Content $env:GITHUB_PATH "C:\Program Files\Git\bin"
 
-          if (Test-Path $PagesPath) {
-              Remove-Item $PagesPath -Recurse -Force
-          }
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
 
-          New-Item -ItemType Directory -Path $PagesPath | Out-Null
-
-
-      - name: Copy EDP Overlays
-        shell: powershell
-        run: |
-          $Source = "C:\EDP\Overlays"
-          $Destination = "C:\EDP\Pages"
-
-          if (-not (Test-Path $Source)) {
-              throw "Overlay source not found: $Source"
-          }
-
-          robocopy $Source $Destination /E /R:2 /W:2 /NFL /NDL /NP
-
-          $RoboCopyExitCode = $LASTEXITCODE
-
-          Write-Host "Robocopy exit code: $RoboCopyExitCode"
-
-          if ($RoboCopyExitCode -gt 7) {
-              throw "Robocopy failed with exit code $RoboCopyExitCode"
-          }
-
-          Write-Host "Overlay files copied successfully."
-
-          # Robocopy uses exit codes 0-7 for successful/non-fatal results.
-          # Explicitly reset the PowerShell process exit code.
-          exit 0
-
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Upload EDP overlays
+        uses: actions/upload-pages-artifact@v4
         with:
-          path: C:\EDP\Pages
-
+          path: C:\EDP\Overlays
 
       - name: Deploy to GitHub Pages
         id: deployment
