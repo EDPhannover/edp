@@ -1,10 +1,8 @@
-name: Deploy EDP Map
+name: Deploy EDP Overlay
 
 on:
   workflow_dispatch:
 
-# Niemals zwei Overlay-Deployments gleichzeitig ausfuehren.
-# Ein zweiter Start wartet, bis der erste fertig ist.
 concurrency:
   group: edp-map-deployment
   cancel-in-progress: false
@@ -17,6 +15,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy EDP Overlay
+
     runs-on:
       - self-hosted
       - Windows
@@ -33,12 +32,13 @@ jobs:
         shell: powershell
         run: |
           $PagesPath = "C:\EDP\Pages"
-          
+
           if (Test-Path $PagesPath) {
               Remove-Item $PagesPath -Recurse -Force
           }
 
           New-Item -ItemType Directory -Path $PagesPath | Out-Null
+
 
       - name: Copy EDP Overlays
         shell: powershell
@@ -52,16 +52,26 @@ jobs:
 
           robocopy $Source $Destination /E /R:2 /W:2 /NFL /NDL /NP
 
-          if ($LASTEXITCODE -gt 7) {
-              throw "Robocopy failed with exit code $LASTEXITCODE"
+          $RoboCopyExitCode = $LASTEXITCODE
+
+          Write-Host "Robocopy exit code: $RoboCopyExitCode"
+
+          if ($RoboCopyExitCode -gt 7) {
+              throw "Robocopy failed with exit code $RoboCopyExitCode"
           }
 
           Write-Host "Overlay files copied successfully."
+
+          # Robocopy uses exit codes 0-7 for successful/non-fatal results.
+          # Explicitly reset the PowerShell process exit code.
+          exit 0
+
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: C:\EDP\Pages
+
 
       - name: Deploy to GitHub Pages
         id: deployment
