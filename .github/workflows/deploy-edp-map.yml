@@ -1,0 +1,68 @@
+name: Deploy EDP Map
+
+on:
+  workflow_dispatch:
+
+# Niemals zwei Overlay-Deployments gleichzeitig ausfuehren.
+# Ein zweiter Start wartet, bis der erste fertig ist.
+concurrency:
+  group: edp-map-deployment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy EDP Overlay
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+      - edp-overlay
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+
+      - name: Prepare Pages directory
+        shell: powershell
+        run: |
+          $PagesPath = "C:\EDP\Pages"
+          
+          if (Test-Path $PagesPath) {
+              Remove-Item $PagesPath -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Path $PagesPath | Out-Null
+
+      - name: Copy EDP Overlays
+        shell: powershell
+        run: |
+          $Source = "C:\EDP\Overlays"
+          $Destination = "C:\EDP\Pages"
+
+          if (-not (Test-Path $Source)) {
+              throw "Overlay source not found: $Source"
+          }
+
+          robocopy $Source $Destination /E /R:2 /W:2 /NFL /NDL /NP
+
+          if ($LASTEXITCODE -gt 7) {
+              throw "Robocopy failed with exit code $LASTEXITCODE"
+          }
+
+          Write-Host "Overlay files copied successfully."
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: C:\EDP\Pages
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
